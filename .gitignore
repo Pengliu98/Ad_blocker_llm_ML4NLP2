@@ -1,0 +1,12 @@
+
+# data
+data/
+baseline/
+*.zip
+
+# python
+__pycache__/
+*.pyc
+
+# mac
+.DS_Store
