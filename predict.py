@@ -1,5 +1,3 @@
-
-
 import json
 import torch
 import argparse
@@ -99,8 +97,13 @@ if __name__ == "__main__":
                     "tag": TEAM_TAG
                 }
             elif args.task == "2":
+                # Extract the exact advertisement text based on the generated spans
+                extracted_texts = [raw_text[start:end] for start, end in spans]
+                response_text = " ".join(extracted_texts)
+
                 tira_output = {
                     "id": doc_id,
+                    "response": response_text,
                     "spans": spans,
                     "tag": TEAM_TAG
                 }
