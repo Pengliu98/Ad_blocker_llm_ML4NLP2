@@ -1,3 +1,15 @@
+import os
+os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+import json
+import torch
+
+# --- Safely bypass ModernBERT's C++ compilation crash ---
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
+# --------------------------------------------------------
+
+
 import json
 import torch
 import argparse
