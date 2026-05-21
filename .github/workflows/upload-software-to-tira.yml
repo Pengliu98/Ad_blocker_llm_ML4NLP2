@@ -26,13 +26,13 @@ jobs:
           tira-cli login --token ${{ secrets.TIRA_CLIENT_TOKEN }}
 
           # Upload Task 1 Setup
-          tira-cli upload-submission \
-            --path ${{ inputs.directory }} \
+          tira-cli upload \
+            --directory ${{ inputs.directory }} \
             --task advertisement-in-retrieval-augmented-generation-2026 \
             --command 'python3 /predict.py --dataset $inputDataset/*.jsonl --output $outputDir/run.jsonl --task 1'
 
           # Upload Task 2 Setup
-          tira-cli upload-submission \
-            --path ${{ inputs.directory }} \
+          tira-cli upload \
+            --directory ${{ inputs.directory }} \
             --task advertisement-in-retrieval-augmented-generation-2026 \
             --command 'python3 /predict.py --dataset $inputDataset/*.jsonl --output $outputDir/run.jsonl --task 2'
