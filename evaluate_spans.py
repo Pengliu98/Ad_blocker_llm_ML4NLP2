@@ -1,23 +1,26 @@
 import json
 
-predictions_file = "test_predictions_IO.jsonl"
+predictions_file = "my_tira_test_run.jsonl" 
 true_labels_file = "data/responses-test-labels.jsonl"
 
 print("Loading files for Character-Level Overlap Evaluation...")
 
-# 1. Load Predictions
+# 1. Load Predictions (UPDATED FOR TIRA FORMAT)
 preds_dict = {}
 with open(predictions_file, 'r', encoding='utf-8') as f:
     for line in f:
         data = json.loads(line)
-        # Convert spans to a set of individual character indices
         char_indices = set()
-        for span in data.get('predicted_ad_spans', []):
-            # Add every single character index (e.g., start 10 to end 15 -> {10, 11, 12, 13, 14})
-            char_indices.update(range(span['start'], span['end']))
+        
+        # Look for 'spans' instead of 'predicted_ad_spans'
+        for span in data.get('spans', []):
+            # Grab the numbers from the list instead of a dictionary
+            if isinstance(span, list) and len(span) >= 2:
+                char_indices.update(range(span[0], span[1]))
+                
         preds_dict[data['id']] = char_indices
 
-# 2. Load True Labels
+# 2. Load True Labels (UNCHANGED)
 true_dict = {}
 with open(true_labels_file, 'r', encoding='utf-8') as f:
     for line in f:
@@ -34,7 +37,7 @@ with open(true_labels_file, 'r', encoding='utf-8') as f:
                 
         true_dict[data['id']] = char_indices
 
-# 3. Calculate Character-Level Math
+# 3. Calculate Character-Level Math (UNCHANGED)
 total_true_chars = 0
 total_pred_chars = 0
 total_correct_chars = 0
@@ -47,7 +50,7 @@ for doc_id in true_dict.keys():
     total_pred_chars += len(pred_chars)
     total_correct_chars += len(true_chars.intersection(pred_chars))
 
-# 4. Calculate Final Metrics
+# 4. Calculate Final Metrics (UNCHANGED)
 precision = total_correct_chars / total_pred_chars if total_pred_chars > 0 else 0.0
 recall = total_correct_chars / total_true_chars if total_true_chars > 0 else 0.0
 f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
