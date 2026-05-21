@@ -12,8 +12,10 @@ class ModernBertMultiTask(nn.Module):
         # Document-level classifier for binary classification (ad vs non-ad)
         self.doc_classifier = nn.Linear(in_features=768, out_features=2)
 
-        # Token-level classifier for span detection (3 classes: non-ad, ad-start, ad-inside)
-        self.token_classifier = nn.Linear(in_features=768, out_features=3)
+        # Token-level classifier for span detection (2 classes: non-ad, ad)
+        self.token_classifier = nn.Linear(in_features=768, out_features=2)
+
+        
 
         
     def forward(self, input_ids, attention_mask):

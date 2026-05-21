@@ -1,7 +1,7 @@
 import json
 
-predictions_file = "final_predictions.jsonl"
-true_labels_file = "data/responses-validation-labels.jsonl"
+predictions_file = "test_predictions_IO.jsonl"
+true_labels_file = "data/responses-test-labels.jsonl"
 
 print("Loading files for Character-Level Overlap Evaluation...")
 

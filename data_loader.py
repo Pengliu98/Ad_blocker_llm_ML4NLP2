@@ -54,10 +54,9 @@ def custom_collate_fn(batch, tokenizer):
                     span_start, span_end = span
 
                     if token_start >= span_start and token_end <= span_end:
-                        if token_start == span_start:
-                            tag = 1 # Beginning of an ad span
-                        else:
-                            tag = 2 # Inside an ad span
+                        
+                        tag = 1 
+                        
                         break
 
                 doc_tags.append(tag)

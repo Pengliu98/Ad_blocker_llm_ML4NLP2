@@ -77,10 +77,14 @@ for epoch in range(num_epochs):
 
         # Compute the loss for token-level classification (cross-entropy loss for span detection)
         # CLASS WEIGHTS: Class 0 (O) = 1.0, Class 1 (B-AD) = 100.0, Class 2 (I-AD) = 1.0
-        class_weights = torch.tensor([1.0, 100.0, 1.0], device=device)
-        token_loss_fn = nn.CrossEntropyLoss(weight=class_weights)
+        #class_weights = torch.tensor([1.0, 100.0, 1.0], device=device)
+        #token_loss_fn = nn.CrossEntropyLoss(weight=class_weights)
+
+        token_loss_fn = nn.CrossEntropyLoss()
         
-        flat_token_logits = token_logits.view(-1,3) # Reshape token logits for loss computation
+        #flat_token_logits = token_logits.view(-1,3) # Reshape token logits for loss computation
+
+        flat_token_logits = token_logits.view(-1,2)
         flat_token_labels = bio_tags.view(-1) # Reshape token labels for
         token_loss = token_loss_fn(flat_token_logits, flat_token_labels)
 
@@ -126,10 +130,11 @@ for epoch in range(num_epochs):
         
 
             # Compute the loss for token-level classification (cross-entropy loss for span detection) on the validation set
-            class_weights = torch.tensor([1.0, 100.0, 1.0], device=device)
-            token_loss_fn = nn.CrossEntropyLoss(weight=class_weights)
+            #class_weights = torch.tensor([1.0, 100.0, 1.0], device=device)
+            token_loss_fn = nn.CrossEntropyLoss()
+            
 
-            flat_token_logits = token_logits.view(-1,3) # Reshape token logits for
+            flat_token_logits = token_logits.view(-1,2) # Reshape token logits for
             flat_token_labels = bio_tags.view(-1) # Reshape token labels for loss computation
             token_loss = token_loss_fn(flat_token_logits, flat_token_labels)
 
@@ -150,16 +155,27 @@ for epoch in range(num_epochs):
 import os
 
 
-# Create a NEW folder for version 2
-os.makedirs("./saved_model_weighted", exist_ok=True)
+# # Create a NEW folder for version 2
+# os.makedirs("./saved_model_weighted", exist_ok=True)
+
+# # Save the native PyTorch model weights to the new folder
+# torch.save(model.state_dict(), "./saved_model_weighted/model_weights.pth")
+
+# # Save the Hugging Face tokenizer rules to the new folder
+# tokenizer.save_pretrained("./saved_model_weighted")
+
+# print("SUCCESS: Model weights and Tokenizer saved to ./saved_model_weighted!")
+
+# Create a NEW folder for the IO architecture
+os.makedirs("./saved_model_IO", exist_ok=True)
 
 # Save the native PyTorch model weights to the new folder
-torch.save(model.state_dict(), "./saved_model_weighted/model_weights.pth")
+torch.save(model.state_dict(), "./saved_model_IO/model_weights.pth")
 
 # Save the Hugging Face tokenizer rules to the new folder
-tokenizer.save_pretrained("./saved_model_weighted")
+tokenizer.save_pretrained("./saved_model_IO")
 
-print("SUCCESS: Model weights and Tokenizer saved to ./saved_model_weighted!")
+print("SUCCESS: Model weights and Tokenizer saved to ./saved_model_IO!")
 
 
 

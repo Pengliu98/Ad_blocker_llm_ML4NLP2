@@ -6,10 +6,10 @@ from model import ModernBertMultiTask
 # 1. Setup Device & Load Model
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
-print("Loading the weighted model...")
+print("Loading the IO model...")
 
-# Point to your NEW weighted model folder
-model_path = "./saved_model_weighted"
+# CHANGE 1: Point to your NEW IO model folder
+model_path = "./saved_model_IO"
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 model = ModernBertMultiTask("answerdotai/ModernBERT-base")
 model.load_state_dict(torch.load(f"{model_path}/model_weights.pth", map_location=device))
@@ -25,10 +25,6 @@ def extract_ad_spans(text, model, tokenizer, device):
     offset_mapping = inputs.pop("offset_mapping")[0].numpy()
     inputs = {k: v.to(device) for k, v in inputs.items()}
     
-    # with torch.no_grad():
-    #     _, token_logits = model(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'])
-    #     preds = torch.argmax(token_logits, dim=2)[0].cpu().numpy()
-
     with torch.no_grad():
         _, token_logits = model(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'])
         
@@ -37,15 +33,12 @@ def extract_ad_spans(text, model, tokenizer, device):
         
         preds = []
         for token_probs in probs:
-            # token_probs looks like [prob_O, prob_B_AD, prob_I_AD]
-            # If the model is less than 80% sure this is Normal text... 
-            # (Meaning it has at least a 20% suspicion it's an ad)
-            if token_probs[0] < 0.80: 
-                # Force it to pick the highest ad tag
-                if token_probs[1] > token_probs[2]:
-                    preds.append(1) # B-AD
-                else:
-                    preds.append(2) # I-AD
+            
+            # CHANGE 2: Simplified 2-Class Logic using the 30% threshold!
+            # token_probs looks like [prob_O, prob_Ad]
+            # If the probability of being "Normal" is less than 70%, flag it as an Ad!
+            if token_probs[0] < 0.70: 
+                preds.append(1) # Ad
             else:
                 preds.append(0) # O
         
@@ -58,19 +51,17 @@ def extract_ad_spans(text, model, tokenizer, device):
         if start_char == 0 and end_char == 0: # Skip special tokens like [CLS]
             continue
             
-        tag = pred # 0: O, 1: B-AD, 2: I-AD
+        tag = pred # 0: O, 1: Ad
         
-        if tag == 1: # B-AD
-            if current_span: spans.append(current_span)
-            current_span = {"start": int(start_char), "end": int(end_char)}
-        elif tag == 2: # I-AD
+        # CHANGE 3: Simplified Span Translation
+        if tag == 1: # We are inside an Ad
             if current_span:
-                current_span["end"] = int(end_char)
+                current_span["end"] = int(end_char) # Extend the current span
             else:
-                current_span = {"start": int(start_char), "end": int(end_char)}
-        elif tag == 0: # O
+                current_span = {"start": int(start_char), "end": int(end_char)} # Start a new span
+        elif tag == 0: # Normal Text
             if current_span:
-                spans.append(current_span)
+                spans.append(current_span) # Save the completed span
                 current_span = None
                 
     if current_span:
@@ -79,9 +70,8 @@ def extract_ad_spans(text, model, tokenizer, device):
     return spans
 
 # 3. Process the Data
-# ---> UPDATE THESE VARIABLES! <---
-input_file = "data/responses-validation.jsonl" 
-output_file = "final_predictions.jsonl"
+input_file = "data/responses-test.jsonl" 
+output_file = "test_predictions_IO.jsonl" # Save to a new file so we don't overwrite!
 text_json_key = "response" 
 
 print(f"Extracting spans for {input_file}...")

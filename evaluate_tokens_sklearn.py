@@ -18,7 +18,6 @@ model.to(device)
 model.eval()
 
 # 2. Load the Evaluation Dataset
-# ---> USE YOUR SAME VAL/TEST FILES HERE <---
 eval_dataset = NativeAdDataset("data/responses-validation.jsonl", "data/responses-validation-labels.jsonl")
 
 eval_dataloader = DataLoader(
