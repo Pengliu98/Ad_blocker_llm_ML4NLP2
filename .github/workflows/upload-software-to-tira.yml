@@ -41,6 +41,4 @@ jobs:
           tira-cli code-submission \
             --path ${{ inputs.directory }} \
             --task advertisement-in-retrieval-augmented-generation-2026 \
-            --dataset advertisement-in-retrieval-augmented-generation-2026/ads-in-rag-task-1-detection-spot-check-20260422-training \
-            --command 'python3 /predict.py --dataset $inputDataset/*.jsonl --output $outputDir/run.jsonl --task 2' \
-            --skip-validation true
+            --command 'python3 /predict.py --dataset $inputDataset/*.jsonl --output $outputDir/run.jsonl --task 2'
