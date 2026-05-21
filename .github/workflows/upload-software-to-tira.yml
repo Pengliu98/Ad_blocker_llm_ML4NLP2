@@ -13,6 +13,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
       - name: Set up Dependencies
         uses: actions/setup-python@v4
         with:
@@ -21,18 +25,20 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip3 install tira
-      - name: Upload code to TIRA
+      - name: Build, test, and upload image
         run: |
           tira-cli login --token ${{ secrets.TIRA_CLIENT_TOKEN }}
 
-          # Upload Task 1 Setup
-          tira-cli upload \
-            --directory ${{ inputs.directory }} \
+
+          tira-cli code-submission \
+            --path ${{ inputs.directory }} \
             --task advertisement-in-retrieval-augmented-generation-2026 \
+            --dataset advertisement-in-retrieval-augmented-generation-2026/ads-in-rag-task-1-detection-spot-check-20260422-training \
             --command 'python3 /predict.py --dataset $inputDataset/*.jsonl --output $outputDir/run.jsonl --task 1'
 
-          # Upload Task 2 Setup
-          tira-cli upload \
-            --directory ${{ inputs.directory }} \
+
+          tira-cli code-submission \
+            --path ${{ inputs.directory }} \
             --task advertisement-in-retrieval-augmented-generation-2026 \
+            --dataset advertisement-in-retrieval-augmented-generation-2026/ads-in-rag-task-1-detection-spot-check-20260422-training \
             --command 'python3 /predict.py --dataset $inputDataset/*.jsonl --output $outputDir/run.jsonl --task 2'
