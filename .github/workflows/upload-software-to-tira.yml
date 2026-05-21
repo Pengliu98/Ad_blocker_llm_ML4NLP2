@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       directory:
-        description: 'The directory that contains the submission. Can be . for the root of the repository'
+        description: "The directory that contains the submission. Can be . for the root of the repository"
         required: true
         default: .
 jobs:
@@ -28,7 +28,6 @@ jobs:
       - name: Build, test, and upload image
         run: |
           tira-cli login --token ${{ secrets.TIRA_CLIENT_TOKEN }}
-          tira-cli verify-installation
           tira-cli code-submission \
             --path ${{ inputs.directory }} \
             --task advertisement-in-retrieval-augmented-generation-2026 \
