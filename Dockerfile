@@ -13,10 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir huggingface-hub
 
 # 4. Add script files to the root directory
-#    predict_docker.py is renamed to predict.py
-#    model_docker.py is renamed to model.py
-ADD predict_docker.py /predict.py
-ADD model_docker.py /model.py
+ADD predict.py /predict.py
+ADD model.py /model.py
 
 # 5. PRE-CACHE the backbone, tokenizer, and your new IO model weights
 RUN python3 -c '\
