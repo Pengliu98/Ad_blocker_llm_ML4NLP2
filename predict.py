@@ -1,125 +1,179 @@
 import os
 os.environ["TORCH_COMPILE_DISABLE"] = "1"
 
-import json
 import torch
-
-# --- Safely bypass ModernBERT's C++ compilation crash ---
 import torch._dynamo
 torch._dynamo.config.suppress_errors = True
-# --------------------------------------------------------
-
 
 import json
-import torch
 import argparse
 from transformers import AutoTokenizer
 from huggingface_hub import hf_hub_download
-from model import ModernBertMultiTask
+from model import ModernBertMultiTaskIO
 
-def extract_ad_spans(text, model, tokenizer, device):
+
+def merge_spans(spans, gap=0):
+    if not spans:
+        return []
+    spans = sorted(spans, key=lambda x: x[0])
+    merged = [list(spans[0])]
+    for s, e in spans[1:]:
+        if s <= merged[-1][1] + gap:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    return merged
+
+
+def split_into_sentences(text, spans):
+    sentence_endings = {'.', '!', '?'}
+    final_spans = []
+
+    for start, end in spans:
+        current_start = start
+        i = start
+        while i < end:
+            if text[i] in sentence_endings:
+                next_i = i + 1
+                while next_i < end and text[next_i] == ' ':
+                    next_i += 1
+                if next_i >= end or text[next_i].isupper():
+                    final_spans.append([current_start, i + 1])
+                    current_start = next_i
+                    i = next_i
+                    continue
+            i += 1
+        if current_start < end:
+            final_spans.append([current_start, end])
+
+    cleaned = []
+    for s, e in final_spans:
+        while s < e and text[s].isspace():
+            s += 1
+        while e > s and text[e - 1].isspace():
+            e -= 1
+        if s < e:
+            cleaned.append([s, e])
+
+    return cleaned
+
+
+def extract_ad_spans(text, model, tokenizer, device, threshold=0.45):
     inputs = tokenizer(
-        text, return_tensors="pt", truncation=True, max_length=512, return_offsets_mapping=True
+        text,
+        return_tensors="pt",
+        max_length=512,
+        stride=128,
+        truncation=True,
+        return_overflowing_tokens=True,
+        return_offsets_mapping=True,
+        padding=True,
     )
-    offset_mapping = inputs.pop("offset_mapping")[0].numpy()
+
+    offset_mapping = inputs.pop("offset_mapping")
+    del inputs["overflow_to_sample_mapping"]
     inputs = {k: v.to(device) for k, v in inputs.items()}
-    
+
     with torch.no_grad():
-        _, token_logits = model(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'])
-        probs = torch.softmax(token_logits, dim=2)[0].cpu().numpy()
-        
-        preds = []
-        for token_probs in probs:
-            if token_probs[0] < 0.70: 
-                preds.append(1) # Ad
+        _, token_logits = model(**inputs)
+
+    text_len = len(text)
+    prob_sum = torch.zeros(text_len, dtype=torch.float32)
+    counts   = torch.zeros(text_len, dtype=torch.float32)
+    probs = torch.softmax(token_logits.cpu(), dim=-1)
+
+    for chunk_idx in range(probs.shape[0]):
+        for i, (start, end) in enumerate(offset_mapping[chunk_idx].tolist()):
+            start, end = int(start), int(end)
+            if start == 0 and end == 0:
+                continue
+            if end > text_len:
+                continue
+            prob_sum[start:end] += probs[chunk_idx, i, 1]
+            counts[start:end]   += 1
+
+    avg_probs = prob_sum / counts.clamp(min=1)
+
+    raw_spans = []
+    current   = None
+    for i in range(text_len):
+        if avg_probs[i].item() >= threshold:
+            if current is None:
+                current = [i, i + 1]
             else:
-                preds.append(0) # Normal
-        
-    spans = []
-    current_span_start = None
-    
-    for idx, pred in enumerate(preds):
-        start_char, end_char = offset_mapping[idx]
-        if start_char == 0 and end_char == 0: 
-            continue
-            
-        if pred == 1: 
-            if current_span_start is None:
-                current_span_start = int(start_char) # Start new span
-            current_span_end = int(end_char)         # Keep pushing the end forward
-        elif pred == 0: 
-            if current_span_start is not None:
-                spans.append([current_span_start, current_span_end]) 
-                current_span_start = None
-                
-    if current_span_start is not None:
-        spans.append([current_span_start, current_span_end])
-        
-    return spans
+                current[1] = i + 1
+        else:
+            if current is not None:
+                raw_spans.append(current)
+                current = None
+    if current is not None:
+        raw_spans.append(current)
+
+    # Filter out very short spurious spans
+    raw_spans = [s for s in raw_spans if s[1] - s[0] >= 20]
+
+    merged = merge_spans(raw_spans, gap=0)
+    return split_into_sentences(text, merged)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, required=True, help="Path to input jsonl")
-    parser.add_argument("--output", type=str, required=True, help="Path to output jsonl")
-    parser.add_argument("--task", type=str, required=True, choices=["1", "2"], help="Sub-task number (1 or 2)")
+    parser.add_argument("--dataset", type=str, required=True)
+    parser.add_argument("--output",  type=str, required=True)
+    parser.add_argument("--task",    type=str, required=True, choices=["1", "2"])
     args = parser.parse_args()
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # Threshold hardcoded — TIRA does not use shell scripts
+    THRESHOLD = 0.45
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-    
-    # 1. Load the tokenizer from your repo
+
     print("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
-    
-    # 2. Initialize your custom architecture
-    print("Initializing multi-task architecture...")
-    model = ModernBertMultiTask("answerdotai/ModernBERT-base")
-    
-    # 3. Download the fine-tuned weights directly from Hugging Face
-    print("Downloading weights from Hugging Face...")
-    weights_path = hf_hub_download(repo_id="Penggggg98/touche2026-adhunter", filename="saved_model_IO/model_weights.pth")
-    
-    # 4. Load the weights into the model
-    print("Loading weights into model...")
+
+    print("Initializing model...")
+    model = ModernBertMultiTaskIO()
+
+    print("Downloading weights from HuggingFace...")
+    weights_path = hf_hub_download(
+        repo_id="Penggggg98/touche2026-adhunter",
+        filename="saved_model_IO/model_weights.pth"
+    )
+
+    print("Loading weights...")
     model.load_state_dict(torch.load(weights_path, map_location=device))
     model.to(device)
     model.eval()
 
-    TEAM_TAG = "ModernBERT-AdHunter"
+    TEAM_TAG = "ModernBERT-AdHunter-IO"
 
-    print(f"Starting inference for Task {args.task}...")
-    with open(args.dataset, 'r', encoding='utf-8') as f_in, open(args.output, 'w', encoding='utf-8') as f_out:
+    print(f"Running inference for Task {args.task} with threshold={THRESHOLD}...")
+    with open(args.dataset, "r", encoding="utf-8") as f_in, \
+         open(args.output,  "w", encoding="utf-8") as f_out:
+
         for line in f_in:
-            data = json.loads(line)
+            data   = json.loads(line)
             doc_id = data.get("id", "")
-            raw_text = data.get("response", "")
-            
+            text   = data.get("response", "")
+
             spans = []
-            if raw_text:
-                spans = extract_ad_spans(raw_text, model, tokenizer, device)
-            
-            # Sub-Task 1 Logic: If there are spans, label is 1 (Ad). Otherwise 0.
-            label = 1 if len(spans) > 0 else 0
+            if text:
+                spans = extract_ad_spans(text, model, tokenizer, device, THRESHOLD)
 
-            # Output ONLY the strict keys required by the specific Sub-Task
+            label = 1 if spans else 0
+
             if args.task == "1":
-                tira_output = {
-                    "id": doc_id,
-                    "label": label,
-                    "tag": TEAM_TAG
+                out = {"id": doc_id, "label": label, "tag": TEAM_TAG}
+            else:
+                extracted = " ".join(text[s:e] for s, e in spans)
+                out = {
+                    "id":       doc_id,
+                    "response": extracted,
+                    "spans":    spans,
+                    "tag":      TEAM_TAG,
                 }
-            elif args.task == "2":
-                # Extract the exact advertisement text based on the generated spans
-                extracted_texts = [raw_text[start:end] for start, end in spans]
-                response_text = " ".join(extracted_texts)
 
-                tira_output = {
-                    "id": doc_id,
-                    "response": response_text,
-                    "spans": spans,
-                    "tag": TEAM_TAG
-                }
-            
-            f_out.write(json.dumps(tira_output) + '\n')
-            
+            f_out.write(json.dumps(out) + "\n")
+
     print("Inference complete!")
