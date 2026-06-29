@@ -109,7 +109,7 @@ if __name__ == '__main__':
     print(f'Device: {device}')
 
     print('Loading tokenizer...')
-    tokenizer = AutoTokenizer.from_pretrained(args.model_dir)
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
     print('Loading model...')
     model = SentenceAdClassifier()
