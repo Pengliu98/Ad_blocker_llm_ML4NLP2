@@ -169,12 +169,14 @@ if __name__ == "__main__":
     print(f"Device: {device}")
 
     print("Loading tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(args.model_dir)
+    # FIX 1: Load directly from the pre-cached base model
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
     print("Loading model...")
     model = ModernBertMultiTaskIO()
     weights_file = "model_weights_best.pth" if args.use_best else "model_weights.pth"
-    weights_path = os.path.join(args.model_dir, weights_file)
+    # FIX 2: Force it to look in /saved_model_IO so the workflow can't confuse it
+    weights_path = os.path.join("/saved_model_IO", weights_file)
     model.load_state_dict(torch.load(weights_path, map_location=device))
     model.to(device)
     model.eval()
