@@ -20,7 +20,7 @@ ADD model_io.py /model_io.py
 RUN python3 -c "from transformers import AutoTokenizer, AutoModel; AutoTokenizer.from_pretrained('answerdotai/ModernBERT-base'); AutoModel.from_pretrained('answerdotai/ModernBERT-base')"
 
 # 6. DOWNLOAD the entire Hugging Face repo directly into the folder
-RUN huggingface-cli download Penggggg98/touche2026-adhunter --local-dir /saved_model_IO
+RUN huggingface-cli download Penggggg98/touche2026-adhunter --local-dir /
 
 # 7. Set the python path to root so imports work
 ENV PYTHONPATH=/
